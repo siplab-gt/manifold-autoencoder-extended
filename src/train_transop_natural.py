@@ -43,7 +43,9 @@ parser.add_argument('-M', '--dict_size', default=16, type=int, help="Dictionary 
 parser.add_argument('-d', '--dataset', default='mnist', type=str, help="Dataset to Use ['mnist','fmnist','svhn']")
 parser.add_argument('-s', '--supervision', default='RES', type=str, help="Default supervision method for selecting point pairs")
 parser.add_argument('-z', '--zeta', default=0.05, type=float, help="Zeta L1 reg")
+parser.add_argument('-ftz', '--finetune_zeta', default=0.05, type=float, help="Zeta L1 reg")
 parser.add_argument('-g', '--gamma', default=2e-5, type=float, help="Gamma L2 reg")
+parser.add_argument('-ftg', '--finetune_gamma', default=2e-6, type=float, help="Gamma L2 reg")
 parser.add_argument('-plr', '--psi_lr', default=1e-3, type=float, help="Psi Learning rate")
 parser.add_argument('-nlr', '--net_lr', default=1e-4, type=float, help="Net Learning rate")
 parser.add_argument('-ae', '--ae_weight', default=.75, type=float, help="Scaling factor in front of the AE loss - value between 0 and 1, ae_weight + con_weight < 1.0")
@@ -90,7 +92,9 @@ TOfile = args.TOfile
 latent_dim = args.latent_dim
 dict_size = args.dict_size
 zeta = args.zeta
+finetune_zeta = args.finetune_zeta
 gamma = args.gamma
+finetune_gamma = args.finetune_gamma
 psi_var = args.psi_var
 ae_weight = args.ae_weight
 num_restart = args.num_restart
@@ -238,7 +242,6 @@ if pretrain:
     print("Successfully loaded pre-trained autoencoder.")
 else:
     # Pre-train AE
-    autoenc_scheduler = torch.optim.lr_scheduler.ExponentialLR(autoenc_opt, gamma=0.995)
     pretrain_ae(encoder, decoder, train_loader, test_loader, autoenc_opt,
                 autoenc_scheduler, dataset, latent_dim, device, ae_epochs)
 if pretrainTO:
@@ -267,6 +270,16 @@ for j in range(total_epochs):
 
     avg_transOp_loss = torch.zeros(len(train_loader))
     avg_ae_loss = torch.zeros(len(train_loader))
+
+    # Re-initialize optimizers for the fine-tuning stage
+    if j == transOp_epochs:
+        zeta = finetune_zeta
+        transOp_opt = torch.optim.Adam(transOp.parameters(), lr=psi_lr, weight_decay=finetune_gamma)
+        scheduler = torch.optim.lr_scheduler.ExponentialLR(transOp_opt, gamma=0.985)
+
+        autoenc_opt = torch.optim.Adam(list(encoder.parameters()) + list(decoder.parameters()),
+                               lr=network_lr, betas=(0.5, 0.999))
+        ae_scheduler = torch.optim.lr_scheduler.ExponentialLR(autoenc_opt, gamma=0.985)
 
     for idx, batch in enumerate(train_loader):
         # Draw next batch
