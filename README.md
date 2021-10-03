@@ -6,7 +6,8 @@ This repository contains an implementation of the manifold auto-encoder model. T
 
 ### Prerequisites
 ```
-PyTorch 3.6
+Python 3.6
+Pytorch 1.7
 Matlab
 SciKit-Learn
 numpy
